@@ -1,0 +1,7 @@
+flask
+numpy
+pandas
+plotly
+selenium
+websocket-client
+backtrader
