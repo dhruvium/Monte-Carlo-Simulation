@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Monte Carlo stock price prediction using Geometric Brownian Motion simulation with interactive charts and real-time TradingView data.">
+    <title>Monte Carlo Stock Predictor</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+</head>
+<body>
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="loading-overlay hidden">
+        <div class="loader-container">
+            <div class="loader-ring">
+                <div></div><div></div><div></div><div></div>
+            </div>
+            <p class="loader-text">Running simulation<span class="dots"></span></p>
+            <p class="loader-subtext" id="loader-detail">Fetching market data...</p>
+            <button id="btn-cancel" class="btn-cancel hidden" onclick="cancelSimulation()" title="Cancel running simulation">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+                Cancel
+            </button>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Header -->
+    <header class="header">
+        <div class="header-inner">
+            <div class="logo-group">
+                <div class="logo-icon">
+                    <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+                        <path d="M14 2L2 8L14 14L26 8L14 2Z" fill="url(#grad1)" opacity="0.9"/>
+                        <path d="M2 20L14 26L26 20" stroke="url(#grad2)" stroke-width="2" fill="none"/>
+                        <path d="M2 14L14 20L26 14" stroke="url(#grad2)" stroke-width="2" fill="none"/>
+                        <defs>
+                            <linearGradient id="grad1" x1="2" y1="2" x2="26" y2="14">
+                                <stop offset="0%" stop-color="#00d4ff"/>
+                                <stop offset="100%" stop-color="#7c3aed"/>
+                            </linearGradient>
+                            <linearGradient id="grad2" x1="2" y1="14" x2="26" y2="26">
+                                <stop offset="0%" stop-color="#00d4ff"/>
+                                <stop offset="100%" stop-color="#7c3aed"/>
+                            </linearGradient>
+                        </defs>
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="logo-title">Monte Carlo Predictor</h1>
+                    <p class="logo-subtitle">Stock Price Simulation Engine</p>
+                </div>
+            </div>
+            <div class="header-badge">
+                <span class="badge-dot"></span>
+                <span>GBM Model</span>
+            </div>
+        </div>
+    </header>
+
+    <main class="main-content">
+        <!-- Control Panel -->
+        <section class="control-panel" id="control-panel">
+            <div class="panel-header">
+                <h2 class="panel-title">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 6v6m-7-7h6m6 0h6"/>
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.32 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                    </svg>
+                    Configuration
+                </h2>
+            </div>
+
+            <div class="controls-grid">
+                <!-- Data Source Inputs -->
+                <div class="control-group">
+                    <label class="control-label" for="input-symbol">Ticker Symbol</label>
+                    <input type="text" id="input-symbol" class="control-input" placeholder="e.g. TSLA, AAPL, MSFT">
+                </div>
+
+                <div class="control-group">
+                    <label class="control-label" for="input-exchange">Exchange</label>
+                    <input type="text" id="input-exchange" class="control-input" placeholder="e.g. NSE, NASDAQ">
+                </div>
+
+                <div class="control-group">
+                    <label class="control-label" for="input-interval">Timeframe</label>
+                    <select id="input-interval" class="control-select">
+                        <option value="3H">3 Hour</option>
+                        <option value="1D" selected>1 Day</option>
+                        <option value="1W">1 Week</option>
+                    </select>
+                </div>
+
+                <div class="control-group">
+                    <label class="control-label" for="input-nbars">
+                        Historical Bars
+                        <span class="control-value" id="value-nbars">500</span>
+                    </label>
+                    <input type="range" id="input-nbars" class="control-slider" min="50" max="5000" value="500" step="50">
+                </div>
+
+                <div class="control-group">
+                    <label class="control-label" for="input-simulations">
+                        Simulations
+                        <span class="control-value" id="value-simulations">1000</span>
+                    </label>
+                    <input type="range" id="input-simulations" class="control-slider" min="100" max="5000" value="1000" step="100">
+                </div>
+
+                <div class="control-group">
+                    <label class="control-label" for="input-horizon">
+                        Prediction Horizon
+                        <span class="control-value" id="value-horizon">30 periods</span>
+                    </label>
+                    <input type="range" id="input-horizon" class="control-slider" min="5" max="120" value="30" step="1">
+                </div>
+            </div>
+
+            <button id="btn-simulate" class="btn-simulate" onclick="runSimulation()">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <polygon points="5 3 19 12 5 21 5 3"/>
+                </svg>
+                Run Simulation
+            </button>
+            
+        </section>
+
+        <!-- Statistics Cards -->
+        <section class="stats-section hidden" id="stats-section">
+            <div class="stats-grid">
+                <div class="stat-card" id="stat-current">
+                    <div class="stat-icon stat-icon-blue">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                    </div>
+                    <div class="stat-info">
+                        <span class="stat-label">Current Price</span>
+                        <span class="stat-value" id="stat-current-value">—</span>
+                    </div>
+                </div>
+
+                <div class="stat-card" id="stat-expected">
+                    <div class="stat-icon stat-icon-violet">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                    </div>
+                    <div class="stat-info">
+                        <span class="stat-label">Expected Price</span>
+                        <span class="stat-value" id="stat-expected-value">—</span>
+                    </div>
+                </div>
+
+                <div class="stat-card" id="stat-return">
+                    <div class="stat-icon stat-icon-green">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+                    </div>
+                    <div class="stat-info">
+                        <span class="stat-label">Expected Return</span>
+                        <span class="stat-value" id="stat-return-value">—</span>
+                    </div>
+                </div>
+
+                <div class="stat-card" id="stat-probgain">
+                    <div class="stat-icon stat-icon-emerald">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
+                    </div>
+                    <div class="stat-info">
+                        <span class="stat-label">Probability of Gain</span>
+                        <span class="stat-value" id="stat-probgain-value">—</span>
+                    </div>
+                </div>
+
+                <div class="stat-card" id="stat-var">
+                    <div class="stat-icon stat-icon-red">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    </div>
+                    <div class="stat-info">
+                        <span class="stat-label">Value at Risk (5%)</span>
+                        <span class="stat-value" id="stat-var-value">—</span>
+                    </div>
+                </div>
+
+                <div class="stat-card" id="stat-vol">
+                    <div class="stat-icon stat-icon-amber">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                    </div>
+                    <div class="stat-info">
+                        <span class="stat-label">Annualized Volatility</span>
+                        <span class="stat-value" id="stat-vol-value">—</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Charts -->
+        <section class="charts-section hidden" id="charts-section">
+            <!-- Fan Chart -->
+            <div class="chart-card">
+                <div class="chart-header">
+                    <h2 class="chart-title">Price Prediction — Monte Carlo Fan Chart</h2>
+                    <p class="chart-subtitle" id="chart-meta">—</p>
+                </div>
+                <div id="chart-fan" class="chart-container"></div>
+            </div>
+
+            <!-- Distribution Chart -->
+            <div class="chart-card">
+                <div class="chart-header">
+                    <h2 class="chart-title">Final Price Distribution</h2>
+                    <p class="chart-subtitle">Histogram of simulated prices at the prediction horizon</p>
+                </div>
+                <div id="chart-histogram" class="chart-container"></div>
+            </div>
+        </section>
+
+        <!-- Model Parameters -->
+        <section class="model-params-section hidden" id="model-section">
+            <div class="chart-card">
+                <div class="chart-header">
+                    <h2 class="chart-title">Model Parameters</h2>
+                    <p class="chart-subtitle">Geometric Brownian Motion parameters derived from historical data</p>
+                </div>
+                <div class="params-grid">
+                    <div class="param-item">
+                        <span class="param-label">Drift (μ)</span>
+                        <span class="param-value" id="param-mu">—</span>
+                    </div>
+                    <div class="param-item">
+                        <span class="param-label">Volatility (σ)</span>
+                        <span class="param-value" id="param-sigma">—</span>
+                    </div>
+                    <div class="param-item">
+                        <span class="param-label">Observations</span>
+                        <span class="param-value" id="param-obs">—</span>
+                    </div>
+                    <div class="param-item">
+                        <span class="param-label">Median Price</span>
+                        <span class="param-value" id="param-median">—</span>
+                    </div>
+                    <div class="param-item">
+                        <span class="param-label">Price Std Dev</span>
+                        <span class="param-value" id="param-std">—</span>
+                    </div>
+                    <div class="param-item">
+                        <span class="param-label">VaR (1%)</span>
+                        <span class="param-value" id="param-var1">—</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <p>Om Kuberaya Namaha &bull; Monte Carlo Simulator &bull; Built by Dhruba</p>
+    </footer>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
